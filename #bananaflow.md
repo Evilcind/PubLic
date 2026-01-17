@@ -34,6 +34,8 @@ ssh -i C:\Users\Admin\Download\ssh-key\priv yc-user@192.168.50.10
 sudo apt update
 sudo apt upgrade
 sudo apt install -y postgresql
+или
+sudo apt update && sudo apt upgrade -y && sudo mkdir -p /etc/apt/keyrings && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && sudo sh -c 'echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && sudo apt update && sudo apt install -y postgresql
 ```
 
 # 4 Подключение к PostgreSQL
@@ -140,4 +142,5 @@ select * from shipments;
 ```
 - Видите ли вы новую запись?
 *Да*  
+
 *Так как во второй ссесии это уже новая транзакция, то данные берутся обновлённые и выводятся все закоммиченные транзакции*
