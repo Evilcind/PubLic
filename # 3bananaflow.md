@@ -135,7 +135,7 @@ CREATE TABLESPACE tablespace_pgdata LOCATION '/mnt/vdb/pgdata';
 ```sql
 CREATE DATABASE bananaflow_pgdata WITH TEMPLATE bananaflow TABLESPACE tablespace_pgdata;
 ```
-*Нужно убрать все подключения к исхъодной БД*  
+*Нужно убрать все подключения к исходной БД*  
 ``` SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'bananaflow' AND pid <> pg_backend_pid(); ```  
    
   
@@ -195,4 +195,5 @@ yc compute disk list
 yc compute instance delete bananaflow
 yc vpc subnet delete my-yc-subnet-a
 yc vpc network delete my-yc-network-main
+
 ```
