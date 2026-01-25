@@ -363,6 +363,92 @@ listen stats
 sudo systemctl restart haproxy
 sudo systemctl enable haproxy
 ```
+*внизу есть команда на проверку roundrobin, она проверена и haproxy работает как надо*  
+*haproxy конечно отработал хорошо, но это дополнительный сервер, как альтернатива использовать keepalived с VIP*:
+- Установка
+```bash
+sudo apt update
+sudo apt install -y keepalived curl
+```
+- Проверка установки
+```bash
+keepalived -v
+```
+- Настройка Keepalived для Patroni  
+На каждой ноде создаём файл ```/etc/keepalived/check_patroni.sh```: 
+```bash
+#!/bin/bash
+
+# получаем роль ноды из Patroni
+ROLE=$(curl -s http://127.0.0.1:8008/role | grep -oP '"role":\s*"\K[^"]+')
+STATE=$(curl -s http://127.0.0.1:8008/role | grep -oP '"state":\s*"\K[^"]+' | head -n1)
+
+# проверяем, что нода мастер и в состоянии running
+if [[ "$ROLE" == "Leader" && "$STATE" == "running" ]]; then
+    exit 0
+else
+    exit 1
+fi
+```
+- Делаем скрипт исполняемым:
+```bash
+sudo chmod +x /etc/keepalived/check_patroni.sh
+```
+*Теперь скрипт вернёт 0 только если нода является мастером и Patroni работает.*
+- Разрешим выполнение:
+```bash
+chmod +x /etc/keepalived/check_patroni.sh
+```
+- Конфигурация Keepalived:  
+Файл: ```/etc/keepalived/keepalived.conf```
+Пример для всех узлов (отличается только priority):
+```conf
+global_defs {
+    script_user root
+    enable_script_security
+}
+
+vrrp_script chk_patroni {
+    script "/etc/keepalived/check_patroni.sh"
+    interval 3
+    fall 2
+    rise 1
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface enp0s3
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 12345
+    }
+    virtual_ipaddress {
+        192.168.50.40/24
+    }
+    track_script {
+        chk_patroni
+    }
+}
+
+```
+- Настройка приоритетов (пример)
+```conf
+patroni1: priority 100
+patroni2: priority 90
+patroni3: priority 80
+```
+*При равных условиях VIP будет у той ноды, у которой выше priority.*  
+*Но главное условие — она должна быть master по Patroni.*
+- Запуск:
+```bash
+systemctl enable keepalived --now
+```
+*При failover Patroni переключает роль → Keepalived через скрипт убирает VIP у старого мастера и вешает его на нового.*  
+*Время переключения обычно 2–5 секунд.*
+
 # 4 Проверьте отказоустойчивость кластера, имитируя сбой на одном из узлов.
 ```
 patronictl -c /etc/patroni.yml list
@@ -442,6 +528,11 @@ for i in {1..5}; do
   psql -h 192.168.50.10 -p 5001 -U postgres -t -c "SELECT 'Connection $i -> ' || inet_server_addr();"
 done
 ```
+- Проверка keepalived:
+```bash
+ip addr show eth0
+```
+*должен отобразится еще один ip*
 - Удаление всего
 ```powershell
 $names = @("etcd1", "etcd2", "etcd3", "patroni1", "patroni2", "patroni3", "haproxy")
